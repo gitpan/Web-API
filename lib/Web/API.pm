@@ -19,11 +19,11 @@ Web::API - A Simple base module to implement almost every RESTful API with just 
 
 =head1 VERSION
 
-Version 0.4.4
+Version 0.5.5
 
 =cut
 
-our $VERSION = "0.4";
+our $VERSION = "0.5";
 
 =head1 SYNOPSIS
 
@@ -602,12 +602,14 @@ sub map_options {
 =cut
 
 sub AUTOLOAD {
-    my ($self, $options) = @_;
+    my ($self, %options) = @_;
 
     my ($command) = $AUTOLOAD =~ /([^:]+)$/;
 
     return { error => "unknown command: $command" }
         unless (exists $self->commands->{$command});
+
+    my $options = \%options;
 
     # construct URI path
     my $uri  = URI->new($self->base_url);
