@@ -1,31 +1,183 @@
-Revision history for Web-API
+==================================================
+Changes from 2012-05-06 00:00:00 +0000 to present.
+==================================================
 
-0.8     2013-03-05T17:35:42
-        basic OAuth 1.0a auth_types: oauth_params, oauth_header
-        bug fix: don't screw up extra parameters in GET/HEAD/DELETE requests
+----------------------------------------
+version 0.9 at 2013-05-06 06:13:29 +0000
+----------------------------------------
 
-0.7     2013-02-28T15:06:31
-        multiple wrapper keys, get_params auth_type, better XML::Simple options
-        (please someone write proper XML encode/decode support.
-        maybe even choosable XML parser with great defaults)
+  Change: 26c288a1a14bd5aaf8ba63fa4a5babe117c4c12c
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-05-06 18:13:17 +0000
 
-0.6     2013-01-12T21:30:10
-        print mandrill response in debug mode
+    fixed perl::critic complains 
 
-0.5     2013-01-07T02:13:03
-        use hash instead of hashref as input for less curly braces
+  Change: 77c43b92d950b4bb389e7eb4224e10fb5bd24bee
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-05-03 15:33:57 +0000
 
-0.4     2013-01-07T01:38:42
-        renamed to Web::API
+    implemented support for multiple ID keys in the URI path 
 
-0.3     2012-10-24T11:21:41
-        replaced REST::Client with LWP::UserAgent + HTTP::Cookies for more control
-        updated Module::Install due to http://weblog.bulknews.net/post/33907905561/do-not-ship-modules-with-module-install-1-04
+  Change: 29ad37960da66217ca259c17e302216bbe67ca6f
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-05-03 05:47:01 +0000
 
-0.2     2012-01-24T11:32:53
-        use 5.010 instead of feature to prevent building tests on lower
-        perl versions
+    migrated to dist::zilla 
 
-0.1     2012-01-18T02:50:14
-        initial release.
+  Change: 401ee25b126be8de7223f5e7228084fa3b83934c
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-04-11 13:41:41 +0000
 
+    added strict_ssl attribute, moved TODO to github issues, fixed option
+    wrapping based on content_type 
+
+----------------------------------------
+version 0.8 at 2013-03-05 20:47:31 +0000
+----------------------------------------
+
+  Change: eef458d3666be06cb8d1e2a984263b3de56482ae
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-03-06 09:47:31 +0000
+
+    bug fix: don't screw up extra parameters in GET/HEAD/DELETE requests 
+
+  Change: 94f060ae0b6da1e961673b5953cf6d1f255bdeb3
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-03-05 16:36:13 +0000
+
+    basic OAuth 1.0a auth_types: oauth_params, oauth_header 
+
+----------------------------------------
+version 0.7 at 2013-02-28 02:17:10 +0000
+----------------------------------------
+
+  Change: 4e5dee860074113c3edea8ad7563f562ebb8bbad
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-02-28 15:17:10 +0000
+
+    Checking in changes prior to tagging of version 0.7.
+
+    Changelog diff is: 
+
+  Change: 9eec7bf943e7f2f7a1925080e36e9626ff256189
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-02-28 15:15:43 +0000
+
+    multiple wrapper keys, get_params auth_type, better XML::Simple
+    options 
+
+----------------------------------------
+version 0.6 at 2013-01-12 20:33:09 +0000
+----------------------------------------
+
+  Change: ecbdc6403412cfdae26efd00c1a66cb2c8cec45b
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-12 21:33:09 +0000
+
+    Checking in changes prior to tagging of version 0.6.
+
+    Changelog diff is: 
+
+  Change: 0c51f53ba340f7af1cabb4fd6f37e66a4585e729
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-12 21:32:36 +0000
+
+    print mandrill response in debug mode 
+
+----------------------------------------
+version 0.5 at 2013-01-07 01:19:41 +0000
+----------------------------------------
+
+  Change: c12d348bb1aa772f94ed46c4f04162418d824886
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-07 02:19:41 +0000
+
+    Checking in changes prior to tagging of version 0.5.
+
+    Changelog diff is: 
+
+  Change: c8dcb2566bdad3b17742832bfb9ee884294b3b5c
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-07 02:14:00 +0000
+
+    version bump 
+
+----------------------------------------
+version 0.4 at 2013-01-07 01:12:34 +0000
+----------------------------------------
+
+  Change: db216146bb9f03f9c06ca8903367b8976338400c
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-07 02:12:34 +0000
+
+    Checking in changes prior to tagging of version 0.4.
+
+    Changelog diff is: 
+
+  Change: fb2a1f7a23be84e32c435d1d25881b1dfd9d141f
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-07 02:12:14 +0000
+
+    use hash instead of hashref for less curly braces :) 
+
+  Change: 56c638910e603644ba20a4273d6ed3fc18301d39
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-07 01:40:08 +0000
+
+    Checking in changes prior to tagging of version 0.4.
+
+    Changelog diff is: 
+
+  Change: efc361f2f4800d5bbc64f1e3658a8678090d3d2c
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-07 01:39:50 +0000
+
+    version bump 
+
+  Change: 634237aedb60f671ae11a328bb8c3d98311eb55e
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-01-07 01:27:46 +0000
+
+    renamed module to Web::API 
+
+----------------------------------------
+version 0.3 at 2012-10-24 09:51:28 +0000
+----------------------------------------
+
+  Change: 120dec5fc4414a8676b028b7cd720b7fe20c5350
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2012-10-24 11:51:28 +0000
+
+    Checking in changes prior to tagging of version 0.3.
+
+    Changelog diff is: 
+
+  Change: ca298a8f3cc24c23a3d4f5f71d4178b55103cbcb
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2012-10-24 11:23:07 +0000
+
+    version bump 
+
+  Change: 7c452b820b56396d95331708e9a3f978451339ce
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2012-03-04 23:36:39 +0000
+
+    [CHANGED] check mandatory attributes before mapping them, also map
+    urlencoded post data 
+
+  Change: 45ca913647286bdb1014e91be5a4fce0d5b58012
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2012-03-04 02:58:00 +0000
+
+    [FIXED] updated dependencies 
+
+  Change: 78d828311035777ad01c47a8cebe2509b1634eb4
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2012-02-28 16:24:22 +0000
+
+    [CHANGED] replaced REST::Client with LWP::UserAgent, will help with
+    oauth later too. more error handling 
+
+================================================
+Plus 2 releases after 2012-05-06 00:00:00 +0000.
+================================================

@@ -1,7 +1,11 @@
 package Web::API;
 
 use 5.010;
-use Any::Moose 'Role';
+use Mouse::Role;
+
+# ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
+
+our $VERSION = '0.9'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -19,17 +23,554 @@ $Net::OAuth::PROTOCOL_VERSION = Net::OAuth::PROTOCOL_VERSION_1_0A;
 
 our $AUTOLOAD;
 
+
+requires 'commands';
+
+
+has 'base_url' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'api_key' => (
+    is       => 'rw',
+    isa      => 'Str',
+    required => 1,
+);
+
+
+has 'user' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'api_key_field' => (
+    is      => 'rw',
+    isa     => 'Str',
+    default => sub { 'key' },
+);
+
+
+has 'mapping' => (
+    is      => 'rw',
+    default => sub { {} },
+);
+
+
+has 'wrapper' => (
+    is      => 'rw',
+    clearer => 'clear_wrapper',
+);
+
+
+has 'header' => (
+    is      => 'rw',
+    lazy    => 1,
+    default => sub { {} },
+);
+
+
+has 'auth_type' => (
+    is      => 'rw',
+    isa     => 'Str',
+    default => sub { 'none' },
+);
+
+
+has 'default_method' => (
+    is      => 'rw',
+    isa     => 'Str',
+    default => sub { 'GET' },
+);
+
+
+has 'extension' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'user_agent' => (
+    is      => 'rw',
+    isa     => 'Str',
+    default => sub { __PACKAGE__ . ' ' . $Web::API::VERSION },
+);
+
+
+has 'timeout' => (
+    is       => 'rw',
+    isa      => 'Int',
+    default  => sub { 30 },
+    required => 1,
+);
+
+
+has 'strict_ssl' => (
+    is       => 'rw',
+    isa      => 'Bool',
+    default  => sub { 0 },
+    lazy     => 1,
+    required => 1,
+);
+
+
+has 'agent' => (
+    is       => 'rw',
+    isa      => 'LWP::UserAgent',
+    lazy     => 1,
+    required => 1,
+    builder  => '_build_agent',
+);
+
+
+has 'content_type' => (
+    is      => 'rw',
+    isa     => 'Str',
+    default => sub { 'text/plain' },
+);
+
+
+has 'incoming_content_type' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'outgoing_content_type' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'debug' => (
+    is      => 'rw',
+    isa     => 'Bool',
+    default => sub { 0 },
+    lazy    => 1,
+);
+
+
+has 'cookies' => (
+    is      => 'rw',
+    isa     => 'HTTP::Cookies',
+    default => sub { HTTP::Cookies->new },
+);
+
+
+has 'consumer_secret' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'access_token' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'access_secret' => (
+    is  => 'rw',
+    isa => 'Str',
+);
+
+
+has 'signature_method' => (
+    is      => 'rw',
+    isa     => 'Str',
+    default => sub { 'HMAC-SHA1' },
+    lazy    => 1,
+);
+
+has 'json' => (
+    is      => 'rw',
+    isa     => 'JSON',
+    default => sub {
+        my $js = JSON->new;
+        $js->utf8;
+        $js->allow_blessed;
+        $js->convert_blessed;
+        $js->allow_nonref;
+        $js;
+    },
+);
+
+has 'xml' => (
+    is      => 'rw',
+    isa     => 'XML::Simple',
+    lazy    => 1,
+    default => sub {
+        XML::Simple->new(
+            ContentKey => '-content',
+            NoAttr     => 1,
+            KeepRoot   => 1,
+            KeyAttr    => {},
+        );
+    },
+);
+
+sub _build_agent {
+    my ($self) = @_;
+
+    return LWP::UserAgent->new(
+        agent      => $self->user_agent,
+        cookie_jar => $self->cookies,
+        timeout    => $self->timeout,
+        ssl_opts   => { verify_hostname => $self->strict_ssl },
+    );
+}
+
+
+sub nonce {
+    return join('', rand_chars(size => 16, set => 'alphanumeric'));
+}
+
+
+sub decode {
+    my ($self, $content, $content_type) = @_;
+
+    my $data;
+    eval {
+        given ($content_type)
+        {
+            when (/text/) { $data = $content; }
+            when (/urlencoded/) {
+                foreach (split(/&/, $content)) {
+                    my ($key, $value) = split(/=/, $_);
+                    $data->{ uri_unescape($key) } = uri_unescape($value);
+                }
+            }
+            when (/json/) { $data = $self->json->decode($content); }
+            when (/xml/) { $data = $self->xml->XMLin($content, NoAttr => 0); }
+        }
+    };
+    return { error => "couldn't decode payload using $content_type: $@\n"
+            . Dumper($content) }
+        if ($@ || ref \$content ne 'SCALAR');
+
+    return $data;
+}
+
+
+sub encode {
+    my ($self, $options, $content_type) = @_;
+
+    my $payload;
+    eval {
+        given ($content_type)
+        {
+            when (/text/) { $payload = $options; }
+            when (/urlencoded/) {
+                $payload .=
+                    uri_escape($_) . '=' . uri_escape($options->{$_}) . '&'
+                    foreach (keys %$options);
+                chop($payload);
+            }
+            when (/json/) { $payload = $self->json->encode($options); }
+            when (/xml/)  { $payload = $self->xml->XMLout($options); }
+        }
+    };
+    return { error => "couldn't encode payload using $content_type: $@\n"
+            . Dumper($options) }
+        if ($@ || ref \$payload ne 'SCALAR');
+
+    return $payload;
+}
+
+
+sub talk {
+    my ($self, $command, $uri, $options, $content_type) = @_;
+
+    my $method = uc($command->{method} || $self->default_method);
+    my $oauth_req;
+
+    # handle different auth_types
+    given (lc $self->auth_type) {
+        when ('basic') { $uri->userinfo($self->user . ':' . $self->api_key); }
+        when ('hash_key') {
+            $options->{ $self->api_key_field } = $self->api_key;
+        }
+        when ('get_params') {
+            $uri->query_form(
+                $self->mapping->{user}    || 'user'    => $self->user,
+                $self->mapping->{api_key} || 'api_key' => $self->api_key,
+            );
+        }
+        when (/^oauth/) {
+            $oauth_req = Net::OAuth->request("protected resource")->new(
+                consumer_key     => $self->api_key,
+                consumer_secret  => $self->consumer_secret,
+                request_url      => $uri,
+                request_method   => $method,
+                signature_method => $self->signature_method,
+                timestamp        => time,
+                nonce            => $self->nonce,
+                token            => $self->access_token,
+                token_secret     => $self->access_secret,
+                ($options ? (extra_params => $options) : ()),
+            );
+            $oauth_req->sign;
+        }
+        default {
+            print "WARNING: auth_type "
+                . $self->auth_type
+                . " not supported yet\n"
+                unless (lc($self->auth_type) eq 'none');
+        }
+    }
+
+    # encode payload
+    my $payload;
+    if (keys %$options) {
+        if ($method =~ m/^(GET|HEAD|DELETE)$/) {
+
+            # TODO: check whether $option is a flat hashref
+
+            unless ($self->auth_type eq 'oauth_params') {
+                $uri->query_param_append($_ => $options->{$_})
+                    for (keys %$options);
+            }
+        }
+        else {
+            $payload = $self->encode($options, $content_type->{out});
+
+            # got an error while encoding? return it
+            return $payload
+                if (ref $payload eq 'HASH' && exists $payload->{error});
+
+            print "send payload: $payload\n" if $self->debug;
+        }
+    }
+
+    $uri = $oauth_req->to_url if ($self->auth_type eq 'oauth_params');
+
+    if ($self->debug) {
+        print "uri: $method $uri\n";
+        print "extra header:\n" . Dumper($self->header) if (%{ $self->header });
+        print "OAuth header: " . $oauth_req->to_authorization_header . $/
+            if ($self->auth_type eq 'oauth_header');
+    }
+
+    # build headers/request
+    my $headers =
+        HTTP::Headers->new(%{ $self->header }, "Accept" => $content_type->{in});
+    my $request = HTTP::Request->new($method, $uri, $headers);
+    unless ($method =~ m/^(GET|HEAD|DELETE)$/) {
+        $request->header("Content-type" => $content_type->{out});
+        $request->content($payload);
+    }
+
+    # oauth POST
+    if (    $options
+        and ($method eq 'POST')
+        and ($self->auth_type =~ m/^oauth/))
+    {
+        $request->content($oauth_req->to_post_body);
+    }
+
+    # oauth_header
+    $request->header(Authorization => $oauth_req->to_authorization_header)
+        if ($self->auth_type eq 'oauth_header');
+
+    # do the actual work
+    $self->agent->cookie_jar($self->cookies);
+    my $response = $self->agent->request($request);
+
+    unless ($response->is_success || $response->is_redirect) {
+        print "error: " . $response->status_line . $/ if $self->debug;
+        return { error => "request failed: " . $response->status_line };
+    }
+
+    print "recv payload: " . $response->decoded_content . $/
+        if $self->debug;
+
+    # collect response headers
+    my $response_headers;
+    $response_headers->{$_} = $response->header($_)
+        foreach ($response->header_field_names);
+
+    return {
+        header => $response_headers,
+        code   => $response->code,
+        content =>
+            $self->decode($response->decoded_content, $content_type->{in}),
+    };
+}
+
+
+sub map_options {
+    my ($self, $options, $command, $content_type) = @_;
+
+    my $method = uc($command->{method} || $self->default_method);
+
+    # check existence of mandatory attributes
+    if ($command->{mandatory}) {
+        print "mandatory keys:\n" . Dumper(\@{ $command->{mandatory} })
+            if $self->debug;
+
+        my @missing_attrs;
+        foreach my $attr (@{ $command->{mandatory} }) {
+            push(@missing_attrs, $attr) unless (exists $options->{$attr});
+        }
+
+        return { error => 'mandatory attributes for this command missing: '
+                . join(', ', @missing_attrs) }
+            if @missing_attrs;
+    }
+
+    my %opts;
+
+    # first include assumed to be already mapped default attributes
+    %opts = %{ $command->{default_attributes} }
+        if exists $command->{default_attributes};
+
+    # then map everything in $options, overwriting detault_attributes if necessary
+    if (keys %{ $self->mapping } and not $command->{no_mapping}) {
+        print "mapping hash:\n" . Dumper($self->mapping) if $self->debug;
+
+        # do the key and value mapping of options hash and overwrite defaults
+        foreach my $key (keys %$options) {
+            my ($newkey, $newvalue);
+            $newkey = $self->mapping->{$key} if ($self->mapping->{$key});
+            $newvalue = $self->mapping->{ $options->{$key} }
+                if ($self->mapping->{ $options->{$key} });
+
+            $opts{ $newkey || $key } = $newvalue || $options->{$key};
+        }
+
+        # and write everything back to $options
+        $options = \%opts;
+    }
+    else {
+        $options = { %opts, %$options };
+    }
+
+    # wrap all options in wrapper key(s) if requested
+    $options =
+        wrap($options, $command->{wrapper} || $self->wrapper, $content_type)
+        unless ($method =~ m/^(GET|HEAD|DELETE)$/);
+
+    print "options:\n" . Dumper($options) if $self->debug;
+
+    return $options;
+}
+
+
+sub wrap {
+    my ($options, $wrapper, $content_type) = @_;
+
+    if (ref $wrapper eq 'ARRAY') {
+
+        # XML needs wrapping into extra array ref layer to make XML::Simple
+        # behave correctly
+        if ($content_type =~ m/xml/) {
+            $options = { $_ => [$options] } for (reverse @{$wrapper});
+        }
+        else {
+            $options = { $_ => $options } for (reverse @{$wrapper});
+        }
+    }
+    elsif (defined $wrapper) {
+        $options = { $wrapper => $options };
+    }
+
+    return $options;
+}
+
+
+sub AUTOLOAD {
+    my ($self, %options) = @_;
+
+    my ($command) = $AUTOLOAD =~ /([^:]+)$/;
+
+    return { error => "unknown command: $command" }
+        unless (exists $self->commands->{$command});
+
+    my $options = \%options;
+
+    # construct URI path
+    my $uri  = URI->new($self->base_url);
+    my $path = $uri->path;
+
+    # keep for backward compatibility
+    if ($self->commands->{$command}->{require_id}) {
+        return { error => "required {id} attribute missing" }
+            unless (exists $options->{id});
+        my $id = delete $options->{id};
+        $path .= '/' . $self->commands->{$command}->{pre_id_path}
+            if (exists $self->commands->{$command}->{pre_id_path});
+        $path .= '/' . $id;
+        $path .= '/' . $self->commands->{$command}->{post_id_path}
+            if (exists $self->commands->{$command}->{post_id_path});
+    }
+    elsif (exists $self->commands->{$command}->{path}) {
+        $path .= '/' . $self->commands->{$command}->{path};
+
+        # parse all mandatory ID keys from URI path
+        # format: /path/with/some/:id/and/:another_id/fun.js
+        my @mandatory = ($self->commands->{$command}->{path} =~ m/:(\w+)/g);
+
+        # and replace placeholders
+        foreach my $key (@mandatory) {
+            return { error => "required {$key} attribute missing" }
+                unless exists $options->{$key};
+
+            my $encoded_option = uri_escape(delete $options->{$key});
+            $path =~ s/:$key/$encoded_option/gex;
+        }
+    }
+
+    $path .= '.' . $self->extension if (defined $self->extension);
+    $uri->path($path);
+
+    # configure in/out content types
+    my $content_type;
+    $content_type->{in} =
+           $self->commands->{$command}->{incoming_content_type}
+        || $self->commands->{$command}->{content_type}
+        || $self->incoming_content_type
+        || $self->content_type;
+    $content_type->{out} =
+           $self->commands->{$command}->{outgoing_content_type}
+        || $self->commands->{$command}->{content_type}
+        || $self->outgoing_content_type
+        || $self->content_type;
+
+    # manage options
+    $options = $self->map_options($options, $self->commands->{$command},
+        $content_type->{in})
+        if ((
+                (keys %$options)
+            and ($content_type->{out} =~ m/(xml|json|urlencoded)/))
+        or (exists $self->commands->{$command}->{default_attributes})
+        or (exists $self->commands->{$command}->{mandatory}));
+    return $options if (exists $options->{error});
+
+    # do the call
+    my $response =
+        $self->talk($self->commands->{$command}, $uri, $options, $content_type);
+
+    print "response:\n" . Dumper($response) if $self->debug;
+
+    return $response;
+}
+
+
+1;    # End of Web::API
+
+__END__
+
+=pod
+
 =head1 NAME
 
-Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
+Web::API - Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
 =head1 VERSION
 
-Version 0.8
-
-=cut
-
-our $VERSION = "0.8";
+version 0.9
 
 =head1 SYNOPSIS
 
@@ -119,7 +660,7 @@ Implement the RESTful API of your choice in 10 minutes, roughly.
     }
 
     1;
-        
+
 later use as:
 
     use Net::CloudProvider;
@@ -137,7 +678,6 @@ later use as:
         cpu_shares                     => 5,
         required_ip_address_assignment => 1,
     });
-
 
 =head1 ATTRIBUTES
 
@@ -172,55 +712,21 @@ accordingly requests with require_id:
 whereas $id can be any arbitrary object like a domain, that the API in question
 does operations on.
 
-=cut
-
-requires 'commands';
-
 =head2 base_url (required)
 
 get/set base URL to API, can include paths
-
-=cut
-
-has 'base_url' => (
-    is  => 'rw',
-    isa => 'Str',
-);
 
 =head2 api_key (required)
 
 get/set api_key
 
-=cut
-
-has 'api_key' => (
-    is       => 'rw',
-    isa      => 'Str',
-    required => 1,
-);
-
 =head2 user (optional)
 
 get/set username/account name
 
-=cut
-
-has 'user' => (
-    is  => 'rw',
-    isa => 'Str',
-);
-
 =head2 api_key_field (optional)
 
 get/set name of the hash key in the POST data structure that has to hold the api_key
-
-=cut
-
-has 'api_key_field' => (
-    is      => 'rw',
-    isa     => 'Str',
-    default => sub { 'key' },
-);
 
 =head2 mapping (optional)
 
@@ -228,33 +734,11 @@ supply mapping table, hashref of format { key => value }
 
 default: undef
 
-=cut
-
-has 'mapping' => (
-    is      => 'rw',
-    default => sub { {} },
-);
-
 =head2 wrapper (optional)
-
-=cut
-
-has 'wrapper' => (
-    is      => 'rw',
-    clearer => 'clear_wrapper',
-);
 
 =head2 header (optional)
 
 get/set custom headers sent with each request
-
-=cut
-
-has 'header' => (
-    is      => 'rw',
-    lazy    => 1,
-    default => sub { {} },
-);
 
 =head2
 
@@ -262,38 +746,15 @@ get/set authentication type. currently supported are only 'basic', 'hash_key', '
 
 default: none
 
-=cut
-
-has 'auth_type' => (
-    is      => 'rw',
-    isa     => 'Str',
-    default => sub { 'none' },
-);
-
 =head2 default_method (optional)
 
 get/set default HTTP method
 
 default: GET
 
-=cut
-
-has 'default_method' => (
-    is      => 'rw',
-    isa     => 'Str',
-    default => sub { 'GET' },
-);
-
 =head2 extension (optional)
 
 get/set file extension, e.g. '.json'
-
-=cut
-
-has 'extension' => (
-    is  => 'rw',
-    isa => 'Str',
-);
 
 =head2 user_agent (optional)
 
@@ -301,183 +762,55 @@ get/set User Agent String
 
 default: "Web::API $VERSION"
 
-=cut
-
-has 'user_agent' => (
-    is      => 'rw',
-    isa     => 'Str',
-    default => sub { __PACKAGE__ . ' ' . $VERSION },
-);
-
 =head2 timeout (optional)
 
 get/set LWP::UserAgent timeout
 
-=cut
+=head2 strict_ssl (optional)
 
-has 'timeout' => (
-    is       => 'rw',
-    isa      => 'Int',
-    default  => sub { 30 },
-    required => 1,
-);
+enable/disable strict SSL certificate hostname checking
+
+default: false
 
 =head2 agent (optional)
 
 get/set LWP::UserAgent object
 
-=cut
-
-has 'agent' => (
-    is       => 'rw',
-    isa      => 'LWP::UserAgent',
-    lazy     => 1,
-    required => 1,
-    builder  => '_build_agent',
-);
-
 =head2 content_type (optional)
 
 default: 'text/plain'
-
-=cut
-
-has 'content_type' => (
-    is      => 'rw',
-    isa     => 'Str',
-    default => sub { 'text/plain' },
-);
 
 =head2 incoming_content_type (optional)
 
 default: undef
 
-=cut
-
-has 'incoming_content_type' => (
-    is  => 'rw',
-    isa => 'Str',
-);
-
 =head2 outgoing_content_type (optional)
 
 default: undef
-
-=cut
-
-has 'outgoing_content_type' => (
-    is  => 'rw',
-    isa => 'Str',
-);
 
 =head2 debug (optional)
 
 default: 0
 
-=cut
-
-has 'debug' => (
-    is      => 'rw',
-    isa     => 'Bool',
-    default => sub { 0 },
-    lazy    => 1,
-);
-
 =head2 cookies (optional)
 
 default: HTTP::Cookies->new
-
-=cut
-
-has 'cookies' => (
-    is      => 'rw',
-    isa     => 'HTTP::Cookies',
-    default => sub { HTTP::Cookies->new },
-);
 
 =head2 consumer_secret (required for all oauth_* auth_types)
 
 default: undef
 
-=cut
-
-has 'consumer_secret' => (
-    is  => 'rw',
-    isa => 'Str',
-);
-
 =head2 access_token (required for all oauth_* auth_types)
 
 default: undef
-
-=cut
-
-has 'access_token' => (
-    is  => 'rw',
-    isa => 'Str',
-);
 
 =head2 access_secret (required for all oauth_* auth_types)
 
 default: undef
 
-=cut
-
-has 'access_secret' => (
-    is  => 'rw',
-    isa => 'Str',
-);
-
 =head2 signature_method (required for all oauth_* auth_types)
 
 default: undef
-
-=cut
-
-has 'signature_method' => (
-    is      => 'rw',
-    isa     => 'Str',
-    default => sub { 'HMAC-SHA1' },
-    lazy    => 1,
-);
-
-has 'json' => (
-    is      => 'rw',
-    isa     => 'JSON',
-    default => sub {
-        my $js = JSON->new;
-        $js->utf8;
-        $js->allow_blessed;
-        $js->convert_blessed;
-        $js->allow_nonref;
-        $js;
-    },
-);
-
-has 'xml' => (
-    is      => 'rw',
-    isa     => 'XML::Simple',
-    lazy    => 1,
-    default => sub {
-        XML::Simple->new(
-            ContentKey => '-content',
-            NoAttr     => 1,
-            KeepRoot   => 1,
-            KeyAttr    => {},
-        );
-    },
-);
-
-sub _build_agent {
-    my ($self) = @_;
-
-    return LWP::UserAgent->new(
-        agent      => $self->user_agent,
-        cookie_jar => $self->cookies,
-        timeout    => $self->timeout,
-        ssl_opts   => { verify_hostname => 0 },
-    );
-}
 
 =head1 INTERNAL SUBROUTINES/METHODS
 
@@ -485,348 +818,22 @@ sub _build_agent {
 
 generates new OAuth nonce for every request
 
-=cut
-
-sub nonce {
-    join('', rand_chars(size => 16, set => 'alphanumeric'));
-}
-
 =head2 decode
-
-=cut
-
-sub decode {
-    my ($self, $content, $content_type) = @_;
-
-    my $data;
-    eval {
-        given ($content_type)
-        {
-            when (/text/) { $data = $content; }
-            when (/urlencoded/) {
-                foreach (split(/&/, $content)) {
-                    my ($key, $value) = split(/=/, $_);
-                    $data->{ uri_unescape($key) } = uri_unescape($value);
-                }
-            }
-            when (/json/) { $data = $self->json->decode($content); }
-            when (/xml/) { $data = $self->xml->XMLin($content, NoAttr => 0); }
-        }
-    };
-    return { error => "couldn't decode payload using $content_type: $@\n"
-            . Dumper($content) }
-        if ($@ || ref \$content ne 'SCALAR');
-
-    return $data;
-}
 
 =head2 encode
 
-=cut
-
-sub encode {
-    my ($self, $options, $content_type) = @_;
-
-    my $payload;
-    eval {
-        given ($content_type)
-        {
-            when (/text/) { $payload = $options; }
-            when (/urlencoded/) {
-                $payload .=
-                    uri_escape($_) . '=' . uri_escape($options->{$_}) . '&'
-                    foreach (keys %$options);
-                chop($payload);
-            }
-            when (/json/) { $payload = $self->json->encode($options); }
-            when (/xml/)  { $payload = $self->xml->XMLout($options); }
-        }
-    };
-    return { error => "couldn't encode payload using $content_type: $@\n"
-            . Dumper($options) }
-        if ($@ || ref \$payload ne 'SCALAR');
-
-    return $payload;
-}
-
 =head2 talk
-
-=cut
-
-sub talk {
-    my ($self, $command, $uri, $options, $content_type) = @_;
-
-    my $method = uc($command->{method} || $self->default_method);
-    my $oauth_req;
-
-    # handle different auth_types
-    given (lc $self->auth_type) {
-        when ('basic') { $uri->userinfo($self->user . ':' . $self->api_key); }
-        when ('hash_key') {
-            $options->{ $self->api_key_field } = $self->api_key;
-        }
-        when ('get_params') {
-            $uri->query_form(
-                $self->mapping->{user}    || 'user'    => $self->user,
-                $self->mapping->{api_key} || 'api_key' => $self->api_key,
-            );
-        }
-        when (/^oauth/) {
-            $oauth_req = Net::OAuth->request("protected resource")->new(
-                consumer_key     => $self->api_key,
-                consumer_secret  => $self->consumer_secret,
-                request_url      => $uri,
-                request_method   => $method,
-                signature_method => $self->signature_method,
-                timestamp        => time,
-                nonce            => $self->nonce,
-                token            => $self->access_token,
-                token_secret     => $self->access_secret,
-                ($options ? (extra_params => $options) : ()),
-            );
-            $oauth_req->sign;
-        }
-        default {
-            print "WARNING: auth_type "
-                . $self->auth_type
-                . " not supported yet\n";
-        }
-    }
-
-    # encode payload
-    my $payload;
-    if (keys %$options) {
-        if ($method =~ m/^(GET|HEAD|DELETE)$/) {
-
-            # TODO: check whether $option is a flat hashref
-
-            unless ($self->auth_type eq 'oauth_params') {
-                $uri->query_param_append($_ => $options->{$_})
-                    for (keys %$options);
-            }
-        }
-        else {
-            $payload = $self->encode($options, $content_type->{out});
-
-            # got an error while encoding? return it
-            return $payload
-                if (ref $payload eq 'HASH' && exists $payload->{error});
-
-            print "send payload: $payload\n" if $self->debug;
-        }
-    }
-
-    $uri = $oauth_req->to_url if ($self->auth_type eq 'oauth_params');
-
-    if ($self->debug) {
-        print "uri: $method $uri\n";
-        print "extra header:\n" . Dumper($self->header) if (%{ $self->header });
-        print "OAuth header: " . $oauth_req->to_authorization_header . $/
-            if ($self->auth_type eq 'oauth_header');
-    }
-
-    # build headers/request
-    my $headers =
-        HTTP::Headers->new(%{ $self->header }, "Accept" => $content_type->{in});
-    my $request = HTTP::Request->new($method, $uri, $headers);
-    unless ($method =~ m/^(GET|HEAD|DELETE)$/) {
-        $request->header("Content-type" => $content_type->{out});
-        $request->content($payload);
-    }
-
-    # oauth POST
-    if (    $options
-        and ($method eq 'POST')
-        and ($self->auth_type =~ m/^oauth/))
-    {
-        $request->content($oauth_req->to_post_body);
-    }
-
-    # oauth_header
-    $request->header(Authorization => $oauth_req->to_authorization_header)
-        if ($self->auth_type eq 'oauth_header');
-
-    # do the actual work
-    $self->agent->cookie_jar($self->cookies);
-    my $response = $self->agent->request($request);
-
-    unless ($response->is_success || $response->is_redirect) {
-        print "error: " . $response->status_line . $/ if $self->debug;
-        return { error => "request failed: " . $response->status_line };
-    }
-
-    print "recv payload: " . $response->decoded_content . $/
-        if $self->debug;
-
-    # collect response headers
-    my $response_headers;
-    $response_headers->{$_} = $response->header($_)
-        foreach ($response->header_field_names);
-
-    return {
-        header => $response_headers,
-        code   => $response->code,
-        content =>
-            $self->decode($response->decoded_content, $content_type->{in}),
-    };
-}
 
 =head2 map_options
 
-=cut
-
-sub map_options {
-    my ($self, $options, $command) = @_;
-
-    my $method = uc($command->{method} || $self->default_method);
-
-    # check existence of mandatory attributes
-    if ($command->{mandatory}) {
-        print "mandatory keys:\n" . Dumper(\@{ $command->{mandatory} })
-            if $self->debug;
-
-        my @missing_attrs;
-        foreach my $attr (@{ $command->{mandatory} }) {
-            push(@missing_attrs, $attr) unless (exists $options->{$attr});
-        }
-
-        return { error => 'mandatory attributes for this command missing: '
-                . join(', ', @missing_attrs) }
-            if @missing_attrs;
-    }
-
-    my %opts;
-
-    # first include assumed to be already mapped default attributes
-    %opts = %{ $command->{default_attributes} }
-        if exists $command->{default_attributes};
-
-    # then map everything in $options, overwriting detault_attributes if necessary
-    if (keys %{ $self->mapping } and not $command->{no_mapping}) {
-        print "mapping hash:\n" . Dumper($self->mapping) if $self->debug;
-
-        # do the key and value mapping of options hash and overwrite defaults
-        foreach my $key (keys %$options) {
-            my $newkey = $self->mapping->{$key} if ($self->mapping->{$key});
-            my $newvalue = $self->mapping->{ $options->{$key} }
-                if ($self->mapping->{ $options->{$key} });
-
-            $opts{ $newkey || $key } = $newvalue || $options->{$key};
-        }
-
-        # and write everything back to $options
-        $options = \%opts;
-    }
-    else {
-        $options = { %opts, %$options };
-    }
-
-    # wrap all options in wrapper key(s) if requested
-    $options = wrap($options, $command->{wrapper} || $self->wrapper)
-        unless ($method =~ m/^(GET|HEAD|DELETE)$/);
-
-    print "options:\n" . Dumper($options) if $self->debug;
-
-    return $options;
-}
-
 =head2 wrap
-
-=cut
-
-sub wrap {
-    my ($options, $wrapper) = @_;
-
-    if (ref $wrapper eq 'ARRAY') {
-        $options = { $_ => [$options] } for (reverse @{$wrapper});
-    }
-    elsif (defined $wrapper) {
-        $options = { $wrapper => $options };
-    }
-
-    return $options;
-}
 
 =head2 AUTOLOAD magic
 
-=cut
-
-sub AUTOLOAD {
-    my ($self, %options) = @_;
-
-    my ($command) = $AUTOLOAD =~ /([^:]+)$/;
-
-    return { error => "unknown command: $command" }
-        unless (exists $self->commands->{$command});
-
-    my $options = \%options;
-
-    # construct URI path
-    my $uri  = URI->new($self->base_url);
-    my $path = $uri->path;
-    $path .= '/' . $self->commands->{$command}->{path}
-        if (exists $self->commands->{$command}->{path});
-    if ($self->commands->{$command}->{require_id}) {
-        return { error => "required {id} attribute missing" }
-            unless (exists $options->{id});
-        my $id = delete $options->{id};
-        $path .= '/' . $self->commands->{$command}->{pre_id_path}
-            if (exists $self->commands->{$command}->{pre_id_path});
-        $path .= '/' . $id;
-        $path .= '/' . $self->commands->{$command}->{post_id_path}
-            if (exists $self->commands->{$command}->{post_id_path});
-    }
-    $path .= '.' . $self->extension if (defined $self->extension);
-    $uri->path($path);
-
-    # configure in/out content types
-    my $content_type;
-    $content_type->{in} =
-           $self->commands->{$command}->{incoming_content_type}
-        || $self->commands->{$command}->{content_type}
-        || $self->incoming_content_type
-        || $self->content_type;
-    $content_type->{out} =
-           $self->commands->{$command}->{outgoing_content_type}
-        || $self->commands->{$command}->{content_type}
-        || $self->outgoing_content_type
-        || $self->content_type;
-
-    # manage options
-    $options = $self->map_options($options, $self->commands->{$command})
-        if ((
-                (keys %$options)
-            and ($content_type->{out} =~ m/(xml|json|urlencoded)/))
-        or (exists $self->commands->{$command}->{default_attributes})
-        or (exists $self->commands->{$command}->{mandatory}));
-    return $options if (exists $options->{error});
-
-    # do the call
-    my $response =
-        $self->talk($self->commands->{$command}, $uri, $options, $content_type);
-
-    print "response:\n" . Dumper($response) if $self->debug;
-
-    return $response;
-}
-
-=head1 AUTHOR
-
-Tobias Kirschstein, C<< <mail at lev.geek.nz> >>
-
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-Web-API at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Web-API>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-=head1 TODO
-
-=over 1
-
-=item * implement support for 2- and 3-legged OAuth authentication
-
-=back
+Please report any bugs or feature requests on GitHub's issue tracker L<https://github.com/nupfel/Web-API/issues>.
+Pull requests welcome.
 
 =head1 SUPPORT
 
@@ -834,44 +841,38 @@ You can find documentation for this module with the perldoc command.
 
     perldoc Web::API
 
-
 You can also look for information at:
 
 =over 4
 
-=item * RT: CPAN's request tracker (report bugs here)
+=item * GitHub repository
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Web-API>
+L<https://github.com/nupfel/Web-API>
+
+=item * MetaCPAN
+
+L<https://metacpan.org/module/Web::API>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Web-API>
+L<http://annocpan.org/dist/Web::API>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Web-API>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/Web-API/>
+L<http://cpanratings.perl.org/d/Web::API>
 
 =back
 
+=head1 AUTHOR
 
-=head1 ACKNOWLEDGEMENTS
+Tobias Kirschstein <lev@cpan.org>
 
+=head1 COPYRIGHT AND LICENSE
 
-=head1 LICENSE AND COPYRIGHT
+This software is Copyright (c) 2013 by Tobias Kirschstein.
 
-Copyright 2012 Tobias Kirschstein.
+This is free software, licensed under:
 
-This program is free software; you can redistribute it and/or modify it
-under the terms of either: the GNU General Public License as published
-by the Free Software Foundation; or the Artistic License.
-
-See http://dev.perl.org/licenses/ for more information.
-
+  The (three-clause) BSD License
 
 =cut
-
-1;

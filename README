@@ -1,55 +1,14 @@
-Web-API
-
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
-
-A README file is required for CPAN modules since CPAN extracts the README
-file from a module distribution so that people browsing the archive
-can use it to get an idea of the module's uses. It is usually a good idea
-to provide version information here so that people can decide whether
-fixes for the module are worth downloading.
 
 
-INSTALLATION
+This archive contains the distribution Web-API,
+version 0.9:
 
-To install this module, run the following commands:
+  Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-	perl Makefile.PL
-	make
-	make test
-	make install
+This software is Copyright (c) 2013 by Tobias Kirschstein.
 
-SUPPORT AND DOCUMENTATION
+This is free software, licensed under:
 
-After installing, you can find documentation for this module with the
-perldoc command.
+  The (three-clause) BSD License
 
-    perldoc Web::API
-
-You can also look for information at:
-
-    RT, CPAN's request tracker (report bugs here)
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Web-API
-
-    AnnoCPAN, Annotated CPAN documentation
-        http://annocpan.org/dist/Web-API
-
-    CPAN Ratings
-        http://cpanratings.perl.org/d/Web-API
-
-    Search CPAN
-        http://search.cpan.org/dist/Web-API/
-
-
-LICENSE AND COPYRIGHT
-
-Copyright (C) 2012 Tobias Kirschstein
-
-This program is free software; you can redistribute it and/or modify it
-under the terms of either: the GNU General Public License as published
-by the Free Software Foundation; or the Artistic License.
-
-See http://dev.perl.org/licenses/ for more information.
 
