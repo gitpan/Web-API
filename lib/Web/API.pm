@@ -5,7 +5,7 @@ use Mouse::Role;
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '0.9'; # VERSION
+our $VERSION = '1.0'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -521,6 +521,9 @@ sub AUTOLOAD {
             $path =~ s/:$key/$encoded_option/gex;
         }
     }
+    else {
+        $path .= "/$command";
+    }
 
     $path .= '.' . $self->extension if (defined $self->extension);
     $uri->path($path);
@@ -570,7 +573,7 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 0.9
+version 1.0
 
 =head1 SYNOPSIS
 

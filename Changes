@@ -1,9 +1,26 @@
 ==================================================
-Changes from 2012-05-06 00:00:00 +0000 to present.
+Changes from 2012-09-13 00:00:00 +0000 to present.
 ==================================================
 
 ----------------------------------------
-version 0.9 at 2013-05-06 06:13:29 +0000
+version 1.0 at 2013-09-13 19:51:38 +0000
+----------------------------------------
+
+  Change: 72d5d872f0b55d76358601ce8c1b774978c4b5e6
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-09-13 14:51:31 +0000
+
+    after using in production for a while now decided to go 1.0! yay 
+
+  Change: c23063ca4f35dfb5cb929d887ea1d39a2502fdd2
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-09-13 14:50:57 +0000
+
+    for convenience path can be ommitted if it's the same as the command
+    name 
+
+----------------------------------------
+version 0.9 at 2013-05-06 06:13:17 +0000
 ----------------------------------------
 
   Change: 26c288a1a14bd5aaf8ba63fa4a5babe117c4c12c
@@ -179,5 +196,5 @@ version 0.3 at 2012-10-24 09:51:28 +0000
     oauth later too. more error handling 
 
 ================================================
-Plus 2 releases after 2012-05-06 00:00:00 +0000.
+Plus 2 releases after 2012-09-13 00:00:00 +0000.
 ================================================
