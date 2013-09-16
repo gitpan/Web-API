@@ -1,9 +1,26 @@
 ==================================================
-Changes from 2012-09-13 00:00:00 +0000 to present.
+Changes from 2012-09-16 00:00:00 +0000 to present.
 ==================================================
 
 ----------------------------------------
-version 1.0 at 2013-09-13 19:51:38 +0000
+version 1.1 at 2013-09-16 21:15:57 +0000
+----------------------------------------
+
+  Change: 6c464fc222409ef07994be2c376d37cdd7b81dd1
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-09-16 16:15:50 +0000
+
+    version bump, documentation update 
+
+  Change: a349b52d00d4a19da4cc215c4d35994131c6d84f
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-09-16 16:15:34 +0000
+
+    introduced switch to disable oauth post body override. try to parse
+    resposne and include header + code in answer even on error 
+
+----------------------------------------
+version 1.0 at 2013-09-13 19:51:31 +0000
 ----------------------------------------
 
   Change: 72d5d872f0b55d76358601ce8c1b774978c4b5e6
@@ -196,5 +213,5 @@ version 0.3 at 2012-10-24 09:51:28 +0000
     oauth later too. more error handling 
 
 ================================================
-Plus 2 releases after 2012-09-13 00:00:00 +0000.
+Plus 2 releases after 2012-09-16 00:00:00 +0000.
 ================================================

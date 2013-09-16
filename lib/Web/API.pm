@@ -5,7 +5,7 @@ use Mouse::Role;
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '1.0'; # VERSION
+our $VERSION = '1.1'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -184,6 +184,14 @@ has 'signature_method' => (
     lazy    => 1,
 );
 
+
+has 'oauth_post_body' => (
+    is      => 'rw',
+    isa     => 'Bool',
+    default => sub { 1 },
+    lazy    => 1,
+);
+
 has 'json' => (
     is      => 'rw',
     isa     => 'JSON',
@@ -299,7 +307,7 @@ sub talk {
             );
         }
         when (/^oauth/) {
-            $oauth_req = Net::OAuth->request("protected resource")->new(
+            my %opts = (
                 consumer_key     => $self->api_key,
                 consumer_secret  => $self->consumer_secret,
                 request_url      => $uri,
@@ -309,8 +317,17 @@ sub talk {
                 nonce            => $self->nonce,
                 token            => $self->access_token,
                 token_secret     => $self->access_secret,
-                ($options ? (extra_params => $options) : ()),
             );
+
+            if (
+                $options
+                and (($self->oauth_post_body and $method eq 'POST')
+                    or $method ne 'POST'))
+            {
+                $opts{extra_params} = $options;
+            }
+
+            $oauth_req = Net::OAuth->request("protected resource")->new(%opts);
             $oauth_req->sign;
         }
         default {
@@ -365,7 +382,8 @@ sub talk {
     # oauth POST
     if (    $options
         and ($method eq 'POST')
-        and ($self->auth_type =~ m/^oauth/))
+        and ($self->auth_type =~ m/^oauth/)
+        and $self->oauth_post_body)
     {
         $request->content($oauth_req->to_post_body);
     }
@@ -378,11 +396,6 @@ sub talk {
     $self->agent->cookie_jar($self->cookies);
     my $response = $self->agent->request($request);
 
-    unless ($response->is_success || $response->is_redirect) {
-        print "error: " . $response->status_line . $/ if $self->debug;
-        return { error => "request failed: " . $response->status_line };
-    }
-
     print "recv payload: " . $response->decoded_content . $/
         if $self->debug;
 
@@ -391,12 +404,27 @@ sub talk {
     $response_headers->{$_} = $response->header($_)
         foreach ($response->header_field_names);
 
-    return {
+    my $answer = {
         header => $response_headers,
         code   => $response->code,
         content =>
             $self->decode($response->decoded_content, $content_type->{in}),
+        raw => $response->content,
     };
+
+    unless ($response->is_success || $response->is_redirect) {
+        print "error: "
+            . $response->status_line
+            . $/
+            . "message: "
+            . $response->decoded_content
+            . $/
+            if $self->debug;
+
+        $answer->{error} = "request failed: " . $response->status_line;
+    }
+
+    return $answer;
 }
 
 
@@ -573,7 +601,7 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 1.0
+version 1.1
 
 =head1 SYNOPSIS
 
@@ -814,6 +842,10 @@ default: undef
 =head2 signature_method (required for all oauth_* auth_types)
 
 default: undef
+
+=head2 oauth_post_body (required for all oauth_* auth_types)
+
+default: true
 
 =head1 INTERNAL SUBROUTINES/METHODS
 
