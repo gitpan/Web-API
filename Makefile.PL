@@ -21,7 +21,7 @@ my %WriteMakefileArgs = (
   "NAME" => "Web::API",
   "PREREQ_PM" => {
     "Carp" => 0,
-    "Data::Dumper" => 0,
+    "Data::Dump" => 0,
     "Data::Random" => 0,
     "HTTP::Cookies" => 0,
     "JSON" => 0,
@@ -34,7 +34,7 @@ my %WriteMakefileArgs = (
     "XML::Simple" => 0
   },
   "TEST_REQUIRES" => {},
-  "VERSION" => "1.1",
+  "VERSION" => "1.2",
   "test" => {
     "TESTS" => "t/*.t"
   }

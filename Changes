@@ -1,9 +1,32 @@
 ==================================================
-Changes from 2012-09-16 00:00:00 +0000 to present.
+Changes from 2012-09-24 00:00:00 +0000 to present.
 ==================================================
 
 ----------------------------------------
-version 1.1 at 2013-09-16 21:15:57 +0000
+version 1.2 at 2013-09-24 16:32:33 +0000
+----------------------------------------
+
+  Change: 428c946f4c2359cf7b1fedbf147d9017a711792c
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-09-24 11:32:24 +0000
+
+    version bump 
+
+  Change: aa94b17007fd28c86aa84bb17367ec645c4fd4a8
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-09-24 11:31:38 +0000
+
+    satisfied perlcritic 
+
+  Change: 3619c80ebb7e3a0bc18e05196adac10659409876
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2013-09-24 11:28:02 +0000
+
+    debug log to STDERR using separate method, deplaced Data::Dumper with
+    Data::Dump 
+
+----------------------------------------
+version 1.1 at 2013-09-16 21:15:50 +0000
 ----------------------------------------
 
   Change: 6c464fc222409ef07994be2c376d37cdd7b81dd1
@@ -213,5 +236,5 @@ version 0.3 at 2012-10-24 09:51:28 +0000
     oauth later too. more error handling 
 
 ================================================
-Plus 2 releases after 2012-09-16 00:00:00 +0000.
+Plus 2 releases after 2012-09-24 00:00:00 +0000.
 ================================================

@@ -14,7 +14,7 @@ meta-spec:
 name: Web-API
 requires:
   Carp: 0
-  Data::Dumper: 0
+  Data::Dump: 0
   Data::Random: 0
   HTTP::Cookies: 0
   JSON: 0
@@ -30,4 +30,4 @@ resources:
   bugtracker: https://github.com/nupfel/Web-API/issues
   homepage: https://github.com/nupfel/Web-API/wiki
   repository: git://github.com/nupfel/Web-API.git
-version: 1.1
+version: 1.2
