@@ -5,7 +5,7 @@ use Mouse::Role;
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '1.3'; # VERSION
+our $VERSION = '1.4'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -34,9 +34,8 @@ has 'base_url' => (
 
 
 has 'api_key' => (
-    is       => 'rw',
-    isa      => 'Str',
-    required => 1,
+    is  => 'rw',
+    isa => 'Str',
 );
 
 
@@ -614,7 +613,7 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 1.3
+version 1.4
 
 =head1 SYNOPSIS
 

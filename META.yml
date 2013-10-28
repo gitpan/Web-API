@@ -6,7 +6,7 @@ build_requires: {}
 configure_requires:
   ExtUtils::MakeMaker: 6.30
 dynamic_config: 0
-generated_by: 'Dist::Zilla version 4.300034, CPAN::Meta::Converter version 2.130880'
+generated_by: 'Dist::Zilla version 4.300039, CPAN::Meta::Converter version 2.130880'
 license: bsd
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -30,4 +30,4 @@ resources:
   bugtracker: https://github.com/nupfel/Web-API/issues
   homepage: https://github.com/nupfel/Web-API/wiki
   repository: git://github.com/nupfel/Web-API.git
-version: 1.3
+version: 1.4
