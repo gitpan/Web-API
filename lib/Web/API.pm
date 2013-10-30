@@ -5,7 +5,7 @@ use Mouse::Role;
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '1.4'; # VERSION
+our $VERSION = '1.5'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -475,7 +475,7 @@ sub map_options {
             my ($newkey, $newvalue);
             $newkey = $self->mapping->{$key} if ($self->mapping->{$key});
             $newvalue = $self->mapping->{ $options->{$key} }
-                if ($self->mapping->{ $options->{$key} });
+                if ($options->{$key} and $self->mapping->{ $options->{$key} });
 
             $opts{ $newkey || $key } = $newvalue || $options->{$key};
         }
@@ -613,7 +613,7 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 1.4
+version 1.5
 
 =head1 SYNOPSIS
 

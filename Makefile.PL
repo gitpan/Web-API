@@ -34,7 +34,7 @@ my %WriteMakefileArgs = (
     "XML::Simple" => 0
   },
   "TEST_REQUIRES" => {},
-  "VERSION" => "1.4",
+  "VERSION" => "1.5",
   "test" => {
     "TESTS" => "t/*.t"
   }
