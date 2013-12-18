@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-use 5.010;
+use 5.010001;
 
 use ExtUtils::MakeMaker 6.30;
 
@@ -31,10 +31,11 @@ my %WriteMakefileArgs = (
     "URI" => 0,
     "URI::Escape::XS" => 0,
     "URI::QueryParam" => 0,
-    "XML::Simple" => 0
+    "XML::Simple" => 0,
+    "experimental" => 0
   },
   "TEST_REQUIRES" => {},
-  "VERSION" => "1.5",
+  "VERSION" => "1.6",
   "test" => {
     "TESTS" => "t/*.t"
   }

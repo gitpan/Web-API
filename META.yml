@@ -25,9 +25,10 @@ requires:
   URI::Escape::XS: 0
   URI::QueryParam: 0
   XML::Simple: 0
-  perl: 5.010
+  experimental: 0
+  perl: 5.010001
 resources:
   bugtracker: https://github.com/nupfel/Web-API/issues
   homepage: https://github.com/nupfel/Web-API/wiki
   repository: git://github.com/nupfel/Web-API.git
-version: 1.5
+version: 1.6
