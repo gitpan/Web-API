@@ -6,7 +6,7 @@ use experimental 'smartmatch';
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '1.6'; # VERSION
+our $VERSION = '1.7'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -23,6 +23,12 @@ use Data::Random qw(rand_chars);
 $Net::OAuth::PROTOCOL_VERSION = Net::OAuth::PROTOCOL_VERSION_1_0A;
 
 our $AUTOLOAD;
+
+our %CONTENT_TYPE = (
+    json => 'application/json',
+    js   => 'application/json',
+    xml  => 'text/xml',
+);
 
 
 requires 'commands';
@@ -87,8 +93,9 @@ has 'default_method' => (
 
 
 has 'extension' => (
-    is  => 'rw',
-    isa => 'Str',
+    is      => 'rw',
+    isa     => 'Str',
+    default => sub { '' },
 );
 
 
@@ -248,9 +255,8 @@ sub decode {
 
     my $data;
     eval {
-        given ($content_type)
-        {
-            when (/text/) { $data = $content; }
+        given ($content_type) {
+            when (/plain/) { $data = $content; }
             when (/urlencoded/) {
                 foreach (split(/&/, $content)) {
                     my ($key, $value) = split(/=/, $_);
@@ -274,9 +280,8 @@ sub encode {
 
     my $payload;
     eval {
-        given ($content_type)
-        {
-            when (/text/) { $payload = $options; }
+        given ($content_type) {
+            when (/plain/) { $payload = $options; }
             when (/urlencoded/) {
                 $payload .=
                     uri_escape($_) . '=' . uri_escape($options->{$_}) . '&'
@@ -419,10 +424,12 @@ sub talk {
         foreach ($response->header_field_names);
 
     my $answer = {
-        header => $response_headers,
-        code   => $response->code,
-        content =>
-            $self->decode($response->decoded_content, $content_type->{in}),
+        header  => $response_headers,
+        code    => $response->code,
+        content => $self->decode(
+            $response->decoded_content,
+            ($response_headers->{'Content-Type'} || $content_type->{in})
+        ),
         raw => $response->content,
     };
 
@@ -570,10 +577,17 @@ sub AUTOLOAD {
     $uri->path($path);
 
     # configure in/out content types
+    # order of precedence should be:
+    # command based incoming_content_type
+    # command based general content_type
+    # content type based on extension (only for incoming)
+    # global incoming_content_type
+    # global general content_type
     my $content_type;
     $content_type->{in} =
            $self->commands->{$command}->{incoming_content_type}
         || $self->commands->{$command}->{content_type}
+        || $CONTENT_TYPE{ $self->extension }
         || $self->incoming_content_type
         || $self->content_type;
     $content_type->{out} =
@@ -608,13 +622,15 @@ __END__
 
 =pod
 
+=encoding UTF-8
+
 =head1 NAME
 
 Web::API - Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
 =head1 VERSION
 
-version 1.6
+version 1.7
 
 =head1 SYNOPSIS
 
