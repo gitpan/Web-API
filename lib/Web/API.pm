@@ -6,7 +6,7 @@ use experimental 'smartmatch';
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '1.7'; # VERSION
+our $VERSION = '1.8'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -573,7 +573,7 @@ sub AUTOLOAD {
         $path .= "/$command";
     }
 
-    $path .= '.' . $self->extension if (defined $self->extension);
+    $path .= '.' . $self->extension if ($self->extension);
     $uri->path($path);
 
     # configure in/out content types
@@ -630,7 +630,7 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 1.7
+version 1.8
 
 =head1 SYNOPSIS
 
@@ -800,7 +800,7 @@ default: undef
 
 get/set custom headers sent with each request
 
-=head2
+=head2 auth_type
 
 get/set authentication type. currently supported are only 'basic', 'hash_key', 'get_params', 'oauth_header', 'oauth_params' or 'none'
 

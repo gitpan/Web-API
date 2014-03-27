@@ -1,9 +1,25 @@
 ==================================================
-Changes from 2013-03-06 00:00:00 +0000 to present.
+Changes from 2013-03-27 00:00:00 +0000 to present.
 ==================================================
 
 ----------------------------------------
-version 1.7 at 2014-03-06 10:46:02 +0000
+version 1.8 at 2014-03-27 11:20:39 +0000
+----------------------------------------
+
+  Change: f0fb24d872d7a4126ab1fece6a025bd49c61c65e
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-03-28 00:20:27 +0000
+
+    make empty/no extension work by removing defined() test 
+
+  Change: 81b80bc26510b61229d699f84d89350415e58699
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-03-28 00:18:36 +0000
+
+    fixed missing POD for auth_type 
+
+----------------------------------------
+version 1.7 at 2014-03-06 05:48:04 +0000
 ----------------------------------------
 
   Change: 3cc13e96bae961164439848e0f104f6f3aa1a27b
@@ -147,5 +163,5 @@ version 0.9 at 2013-05-06 06:13:17 +0000
     wrapping based on content_type 
 
 ================================================
-Plus 8 releases after 2013-03-06 00:00:00 +0000.
+Plus 8 releases after 2013-03-27 00:00:00 +0000.
 ================================================
