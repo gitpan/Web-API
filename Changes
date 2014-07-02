@@ -1,9 +1,46 @@
 ==================================================
-Changes from 2013-03-27 00:00:00 +0000 to present.
+Changes from 2013-07-02 00:00:00 +0000 to present.
 ==================================================
 
 ----------------------------------------
-version 1.8 at 2014-03-27 11:20:39 +0000
+version 1.9 at 2014-07-02 15:26:00 +0000
+----------------------------------------
+
+  Change: 8658599a40698c773720c5ca848b3557a270cfa8
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-07-02 17:21:59 +0000
+
+    leave out the check for specific content_types, we want this to work
+    for any deep structure supporting encoder 
+
+  Change: dd9f05b456f0844a155d665111af61a0f3dcda15
+  Author: Robert Norris <rob@eatenbyagrue.org>
+  Date : 2014-07-02 16:28:05 +0000
+
+    support mandatory deep hash params for json and xml output 
+
+  Change: 797ac16e4c988c5c56b5660055d65c4fb539a01f
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-07-02 16:21:07 +0000
+
+    added support for custom encoders/decoders, use by defining a sub
+    that receives $options(hash)/$response(string) as first and as second
+    argument 
+
+  Change: b45b297ca37db2bd0805cfc5557109a00fb16acc
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-05-01 15:13:46 +0000
+
+    skip newline when debug dumping request headers 
+
+  Change: 16d691fec736a620ea1647c554507ab860533e6b
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-03-28 00:27:47 +0000
+
+    v1.8 
+
+----------------------------------------
+version 1.8 at 2014-03-27 11:20:27 +0000
 ----------------------------------------
 
   Change: f0fb24d872d7a4126ab1fece6a025bd49c61c65e
@@ -133,35 +170,6 @@ version 1.0 at 2013-09-13 19:51:31 +0000
     for convenience path can be ommitted if it's the same as the command
     name 
 
-----------------------------------------
-version 0.9 at 2013-05-06 06:13:17 +0000
-----------------------------------------
-
-  Change: 26c288a1a14bd5aaf8ba63fa4a5babe117c4c12c
-  Author: Tobias Kirschstein <lev@ideegeo.com>
-  Date : 2013-05-06 18:13:17 +0000
-
-    fixed perl::critic complains 
-
-  Change: 77c43b92d950b4bb389e7eb4224e10fb5bd24bee
-  Author: Tobias Kirschstein <lev@ideegeo.com>
-  Date : 2013-05-03 15:33:57 +0000
-
-    implemented support for multiple ID keys in the URI path 
-
-  Change: 29ad37960da66217ca259c17e302216bbe67ca6f
-  Author: Tobias Kirschstein <lev@ideegeo.com>
-  Date : 2013-05-03 05:47:01 +0000
-
-    migrated to dist::zilla 
-
-  Change: 401ee25b126be8de7223f5e7228084fa3b83934c
-  Author: Tobias Kirschstein <lev@ideegeo.com>
-  Date : 2013-04-11 13:41:41 +0000
-
-    added strict_ssl attribute, moved TODO to github issues, fixed option
-    wrapping based on content_type 
-
 ================================================
-Plus 8 releases after 2013-03-27 00:00:00 +0000.
+Plus 9 releases after 2013-07-02 00:00:00 +0000.
 ================================================
