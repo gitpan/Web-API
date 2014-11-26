@@ -6,7 +6,7 @@ use experimental 'smartmatch';
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '1.9'; # VERSION
+our $VERSION = '2.0'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -19,6 +19,7 @@ use URI::QueryParam;
 use Carp;
 use Net::OAuth;
 use Data::Random qw(rand_chars);
+use Time::HiRes 'sleep';
 
 $Net::OAuth::PROTOCOL_VERSION = Net::OAuth::PROTOCOL_VERSION_1_0A;
 
@@ -129,6 +130,28 @@ has 'agent' => (
     lazy     => 1,
     required => 1,
     builder  => '_build_agent',
+);
+
+
+has 'retry_http_codes' => (
+    is  => 'rw',
+    isa => 'ArrayRef',
+);
+
+
+has 'retry_times' => (
+    is      => 'rw',
+    isa     => 'Int',
+    lazy    => 1,
+    default => sub { 3 },
+);
+
+
+has 'retry_delay' => (
+    is      => 'rw',
+    isa     => 'Num',
+    lazy    => 1,
+    default => sub { 1.0 },
 );
 
 
@@ -247,6 +270,7 @@ sub _build_agent {
         agent      => $self->user_agent,
         cookie_jar => $self->cookies,
         timeout    => $self->timeout,
+        keep_alive => 1,
         ssl_opts   => { verify_hostname => $self->strict_ssl },
     );
 }
@@ -340,7 +364,14 @@ sub talk {
     given (lc $self->auth_type) {
         when ('basic') { $uri->userinfo($self->user . ':' . $self->api_key); }
         when ('hash_key') {
-            $options->{ $self->api_key_field } = $self->api_key;
+            my $api_key_field = $self->api_key_field;
+            if ($self->mapping and not $command->{no_mapping}) {
+                $self->log("mapping api_key_field: " . $self->api_key_field)
+                    if $self->debug;
+                $api_key_field = $self->mapping->{$api_key_field}
+                    if $self->mapping->{$api_key_field};
+            }
+            $options->{$api_key_field} = $self->api_key;
         }
         when ('get_params') {
             $uri->query_form(
@@ -441,9 +472,12 @@ sub talk {
     $request->header(Authorization => $oauth_req->to_authorization_header)
         if ($self->auth_type eq 'oauth_header');
 
-    # do the actual work
+    # add session cookies
     $self->agent->cookie_jar($self->cookies);
-    my $response = $self->agent->request($request);
+
+    # do the actual work
+    my $response = $self->request($request);
+    return $response if ref $response eq 'HASH' and exists $response->{error};
 
     $self->log("recv payload: " . $response->decoded_content)
         if $self->debug;
@@ -481,9 +515,34 @@ sub talk {
 sub map_options {
     my ($self, $options, $command, $content_type) = @_;
 
-    my $method = uc($command->{method} || $self->default_method);
+    my %opts;
 
-    # check existence of mandatory attributes
+    # first include default attributes
+    %opts = %{ $command->{default_attributes} }
+        if exists $command->{default_attributes};
+
+    # then map everything in $options, overwriting detault_attributes if necessary
+    if ($self->mapping and not $command->{no_mapping}) {
+        $self->log("mapping hash:\n" . dump($self->mapping)) if $self->debug;
+
+        # do the key and value mapping of options hash and overwrite defaults
+        foreach my $key (keys %$options) {
+            my ($newkey, $newvalue);
+            $newkey = $self->mapping->{$key} if ($self->mapping->{$key});
+            $newvalue = $self->mapping->{ $options->{$key} }
+                if ($options->{$key} and $self->mapping->{ $options->{$key} });
+
+            $opts{ $newkey || $key } = $newvalue || $options->{$key};
+        }
+
+        # and write everything back to $options
+        $options = \%opts;
+    }
+    else {
+        $options = { %opts, %$options };
+    }
+
+    # then check existence of mandatory attributes
     if ($command->{mandatory}) {
         $self->log("mandatory keys:\n" . dump(\@{ $command->{mandatory} }))
             if $self->debug;
@@ -506,34 +565,8 @@ sub map_options {
             if @missing_attrs;
     }
 
-    my %opts;
-
-    # first include assumed to be already mapped default attributes
-    %opts = %{ $command->{default_attributes} }
-        if exists $command->{default_attributes};
-
-    # then map everything in $options, overwriting detault_attributes if necessary
-    if (keys %{ $self->mapping } and not $command->{no_mapping}) {
-        $self->log("mapping hash:\n" . dump($self->mapping)) if $self->debug;
-
-        # do the key and value mapping of options hash and overwrite defaults
-        foreach my $key (keys %$options) {
-            my ($newkey, $newvalue);
-            $newkey = $self->mapping->{$key} if ($self->mapping->{$key});
-            $newvalue = $self->mapping->{ $options->{$key} }
-                if ($options->{$key} and $self->mapping->{ $options->{$key} });
-
-            $opts{ $newkey || $key } = $newvalue || $options->{$key};
-        }
-
-        # and write everything back to $options
-        $options = \%opts;
-    }
-    else {
-        $options = { %opts, %$options };
-    }
-
     # wrap all options in wrapper key(s) if requested
+    my $method = uc($command->{method} || $self->default_method);
     $options =
         wrap($options, $command->{wrapper} || $self->wrapper, $content_type)
         unless ($method =~ m/^(GET|HEAD|DELETE)$/);
@@ -563,6 +596,48 @@ sub wrap {
     }
 
     return $options;
+}
+
+
+sub request {
+    my ($self, $request) = @_;
+
+    my $response;
+    my $err;
+
+    if ($self->retry_http_codes) {
+        my $times = $self->retry_times;
+        my $n     = 0;
+
+        while ($times-- > 0) {
+            $n++;
+            $self->log("try: $n/"
+                    . $self->retry_times
+                    . ' delay: '
+                    . $self->retry_delay . 's')
+                if $self->debug;
+
+            $response = eval { $self->agent->request($request) };
+            my $err = $@;
+            if ($err) {
+                $response->{error} = $err;
+            }
+            else {
+                $self->log("response code was: " . $response->code)
+                    if $self->debug;
+                return $response
+                    unless $response->code ~~ $self->retry_http_codes;
+            }
+
+            sleep $self->retry_delay if $times;    # Do not sleep in last time
+        }
+    }
+    else {
+        $response = eval { $self->agent->request($request) };
+        $response->{error} = $@ if $@;
+    }
+
+    return $response;
 }
 
 
@@ -668,7 +743,7 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 1.9
+version 2.0
 
 =head1 SYNOPSIS
 
@@ -874,6 +949,22 @@ default: false
 
 get/set LWP::UserAgent object
 
+=head2 retry_http_codes (optional)
+
+get/set array of HTTP response codes that trigger a retry of the request
+
+=head2 retry_times (optional)
+
+get/set amount of times a request will be retried at most
+
+default: 3
+
+=head2 retry_delay (optional)
+
+get/set delay to wait between retries. accepts float for millisecond support.
+
+default: 1.0
+
 =head2 content_type (optional)
 
 default: 'text/plain'
@@ -943,6 +1034,10 @@ generates new OAuth nonce for every request
 =head2 map_options
 
 =head2 wrap
+
+=head2 request
+
+retry request with delay if C<retry_http_codes> is set, otherwise just try once.
 
 =head2 AUTOLOAD magic
 
