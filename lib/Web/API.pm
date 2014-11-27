@@ -6,7 +6,7 @@ use experimental 'smartmatch';
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '2.0'; # VERSION
+our $VERSION = '2.1'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -307,7 +307,7 @@ sub decode {
                     }
                 }
                 when (/json/) { $data = $self->json->decode($content); }
-                when (/xml/) {
+                when (/(xml|html)/) {
                     $data = $self->xml->XMLin($content, NoAttr => 0);
                 }
             }
@@ -743,7 +743,7 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 2.0
+version 2.1
 
 =head1 SYNOPSIS
 

@@ -1,9 +1,21 @@
 ==================================================
-Changes from 2013-11-26 00:00:00 +0000 to present.
+Changes from 2013-11-27 00:00:00 +0000 to present.
 ==================================================
 
 ----------------------------------------
-version 2.0 at 2014-11-26 16:06:25 +0000
+version 2.1 at 2014-11-27 02:33:09 +0000
+----------------------------------------
+
+  Change: 1f0c4c1bb176eac753430e9239c5a83b64a10d39
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-11-27 15:32:56 +0000
+
+    because some people can't implement APIs properly (hint SAASU) and
+    return 'text/html' instead of 'text/xml', let's just pretend they are
+    the same... 
+
+----------------------------------------
+version 2.0 at 2014-11-26 15:41:07 +0000
 ----------------------------------------
 
   Change: b0b182597a27bc02a2d0444cad257fa5723491c5
@@ -121,5 +133,5 @@ version 1.6 at 2013-12-18 00:28:53 +0000
     fixed annoying smartmatch warning in 5.18 
 
 =================================================
-Plus 15 releases after 2013-11-26 00:00:00 +0000.
+Plus 15 releases after 2013-11-27 00:00:00 +0000.
 =================================================
