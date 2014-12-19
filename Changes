@@ -1,9 +1,74 @@
 ==================================================
-Changes from 2013-11-27 00:00:00 +0000 to present.
+Changes from 2013-12-19 00:00:00 +0000 to present.
 ==================================================
 
 ----------------------------------------
-version 2.1 at 2014-11-27 02:33:09 +0000
+version 2.2 at 2014-12-19 01:23:05 +0000
+----------------------------------------
+
+  Change: fb57bb4d1c490e8d8cc211858f75cdcf06220022
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-12-19 14:22:51 +0000
+
+    added POD coverage to satisfy release build 
+
+  Change: fb4790824e9b0aec1af2775c3f0269644892b09e
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-12-18 23:15:22 +0000
+
+    version bump + updated documentation 
+
+  Change: f7d1448121ae8c7e8a6bd812a9ff51ddacad9e02
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-12-18 23:14:29 +0000
+
+    decoded content has to be a hash, this will break plain text based
+    APIs 
+
+  Change: d8246e27c842408ff24e449263e91d3273886051
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-12-18 23:12:17 +0000
+
+    implemented first version of error handling configuration (#2) 
+
+  Change: da9820d6bfbe0c28970cf2dcd984094405c5aac9
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-12-18 22:27:29 +0000
+
+    fixed #15 
+
+  Change: 7a64524f0a06295401ef4d2aff388739f00152a5
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-12-04 01:16:12 +0000
+
+    enable strict_ssl by default 
+
+  Change: 00fccc030cd090608949fe802304e004d8ec4a3e
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-11-28 02:04:50 +0000
+
+    print package of the caller instead of always Web::API 
+
+  Change: 3dcf60cbfdd4bb5a8e7c388c687694fdee054c62
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-11-28 02:03:55 +0000
+
+    enable strict SSL hostname checking per default 
+
+  Change: 83c2be14fc4df51ad6103bc22944065c5c911e40
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-11-28 02:03:34 +0000
+
+    updated documentation 
+
+  Change: b9f4b5c4a74ad0bd30c1339b9b2f4546678e337b
+  Author: Tobias Kirschstein <lev@ideegeo.com>
+  Date : 2014-11-27 15:33:24 +0000
+
+    v2.1 
+
+----------------------------------------
+version 2.1 at 2014-11-27 02:32:56 +0000
 ----------------------------------------
 
   Change: 1f0c4c1bb176eac753430e9239c5a83b64a10d39
@@ -122,16 +187,6 @@ version 1.7 at 2014-03-06 05:48:04 +0000
     response based on content-type header with fallback to configured
     incoming content-type 
 
-----------------------------------------
-version 1.6 at 2013-12-18 00:28:53 +0000
-----------------------------------------
-
-  Change: b3a874db5665f92a55822409d3e672957725b264
-  Author: Tobias Kirschstein <lev@ideegeo.com>
-  Date : 2013-12-18 13:28:53 +0000
-
-    fixed annoying smartmatch warning in 5.18 
-
 =================================================
-Plus 15 releases after 2013-11-27 00:00:00 +0000.
+Plus 16 releases after 2013-12-19 00:00:00 +0000.
 =================================================

@@ -6,7 +6,7 @@ use experimental 'smartmatch';
 
 # ABSTRACT: Web::API - A Simple base module to implement almost every RESTful API with just a few lines of configuration
 
-our $VERSION = '2.1'; # VERSION
+our $VERSION = '2.2'; # VERSION
 
 use LWP::UserAgent;
 use HTTP::Cookies;
@@ -60,10 +60,7 @@ has 'api_key_field' => (
 );
 
 
-has 'mapping' => (
-    is      => 'rw',
-    default => sub { {} },
-);
+has 'mapping' => (is => 'rw');
 
 
 has 'wrapper' => (
@@ -108,19 +105,18 @@ has 'user_agent' => (
 
 
 has 'timeout' => (
-    is       => 'rw',
-    isa      => 'Int',
-    default  => sub { 30 },
-    required => 1,
+    is      => 'rw',
+    isa     => 'Int',
+    default => sub { 30 },
+    lazy    => 1,
 );
 
 
 has 'strict_ssl' => (
-    is       => 'rw',
-    isa      => 'Bool',
-    default  => sub { 0 },
-    lazy     => 1,
-    required => 1,
+    is      => 'rw',
+    isa     => 'Bool',
+    default => sub { 1 },
+    lazy    => 1,
 );
 
 
@@ -135,7 +131,13 @@ has 'agent' => (
 
 has 'retry_http_codes' => (
     is  => 'rw',
-    isa => 'ArrayRef',
+    isa => 'ArrayRef[Int]',
+);
+
+
+has 'retry_errors' => (
+    is  => 'rw',
+    isa => 'ArrayRef[RegexpRef]',
 );
 
 
@@ -236,6 +238,12 @@ has 'oauth_post_body' => (
     lazy    => 1,
 );
 
+
+has 'error_keys' => (
+    is  => 'rw',
+    isa => 'ArrayRef[Str]',
+);
+
 has 'json' => (
     is      => 'rw',
     isa     => 'JSON',
@@ -263,6 +271,18 @@ has 'xml' => (
     },
 );
 
+has '_decoded_response' => (
+    is      => 'rw',
+    isa     => 'Ref',
+    clearer => 'clear_decoded_response',
+);
+
+has '_response' => (
+    is      => 'rw',
+    isa     => 'HTTP::Response',
+    clearer => 'clear_response',
+);
+
 sub _build_agent {
     my ($self) = @_;
 
@@ -283,13 +303,15 @@ sub nonce {
 
 sub log {    ## no critic (ProhibitBuiltinHomonyms)
     my ($self, $msg) = @_;
-    print STDERR __PACKAGE__ . ': ' . $msg . $/;
+    print STDERR caller . ': ' . $msg . $/;
     return;
 }
 
 
 sub decode {
     my ($self, $content, $content_type) = @_;
+
+    $self->log("decoding response from '$content_type'") if $self->debug;
 
     my $data;
     eval {
@@ -299,7 +321,10 @@ sub decode {
         }
         else {
             given ($content_type) {
-                when (/plain/) { $data = $content; }
+                when (/plain/) {
+                    chomp $content;
+                    $data = { text => $content };
+                }
                 when (/urlencoded/) {
                     foreach (split(/&/, $content)) {
                         my ($key, $value) = split(/=/, $_);
@@ -313,9 +338,11 @@ sub decode {
             }
         }
     };
-    return { error => "couldn't decode payload using $content_type: $@\n"
-            . dump($content) }
+
+    die "couldn't decode payload using $content_type: $@\n" . dump($content)
         if ($@ || ref \$content ne 'SCALAR');
+
+    $self->_decoded_response($data);
 
     return $data;
 }
@@ -323,6 +350,8 @@ sub decode {
 
 sub encode {
     my ($self, $options, $content_type) = @_;
+
+    $self->log("encoding response to '$content_type'") if $self->debug;
 
     my $payload;
     eval {
@@ -346,8 +375,7 @@ sub encode {
             }
         }
     };
-    return { error => "couldn't encode payload using $content_type: $@\n"
-            . dump($options) }
+    die "couldn't encode payload using $content_type: $@\n" . dump($options)
         if ($@ || ref \$payload ne 'SCALAR');
 
     return $payload;
@@ -424,11 +452,6 @@ sub talk {
         }
         else {
             $payload = $self->encode($options, $content_type->{out});
-
-            # got an error while encoding? return it
-            return $payload
-                if (ref $payload eq 'HASH' && exists $payload->{error});
-
             $self->log("send payload: $payload") if $self->debug;
         }
     }
@@ -476,39 +499,7 @@ sub talk {
     $self->agent->cookie_jar($self->cookies);
 
     # do the actual work
-    my $response = $self->request($request);
-    return $response if ref $response eq 'HASH' and exists $response->{error};
-
-    $self->log("recv payload: " . $response->decoded_content)
-        if $self->debug;
-
-    # collect response headers
-    my $response_headers;
-    $response_headers->{$_} = $response->header($_)
-        foreach ($response->header_field_names);
-
-    my $answer = {
-        header  => $response_headers,
-        code    => $response->code,
-        content => $self->decode(
-            $response->decoded_content,
-            ($response_headers->{'Content-Type'} || $content_type->{in})
-        ),
-        raw => $response->content,
-    };
-
-    unless ($response->is_success || $response->is_redirect) {
-        $self->log("error: "
-                . $response->status_line
-                . $/
-                . "message: "
-                . $response->decoded_content)
-            if $self->debug;
-
-        $answer->{error} = "request failed: " . $response->status_line;
-    }
-
-    return $answer;
+    return $self->request($request);
 }
 
 
@@ -521,7 +512,7 @@ sub map_options {
     %opts = %{ $command->{default_attributes} }
         if exists $command->{default_attributes};
 
-    # then map everything in $options, overwriting detault_attributes if necessary
+    # then map everything in $options, overwriting default_attributes if necessary
     if ($self->mapping and not $command->{no_mapping}) {
         $self->log("mapping hash:\n" . dump($self->mapping)) if $self->debug;
 
@@ -549,19 +540,13 @@ sub map_options {
 
         my @missing_attrs;
         foreach my $attr (@{ $command->{mandatory} }) {
-            my @bits = split /\./, $attr;
-            my $node = $options;
-
             push(@missing_attrs, $attr)
-                unless @bits == grep {
-                       ref $node eq "HASH"
-                    && exists $node->{$_}
-                    && ($node = $node->{$_} // {})
-                } @bits;
+                unless $self->key_exists($attr, $options);
         }
 
-        return { error => 'mandatory attributes for this command missing: '
-                . join(', ', @missing_attrs) }
+        die 'mandatory attributes for this command missing: '
+            . join(', ', @missing_attrs)
+            . $/
             if @missing_attrs;
     }
 
@@ -574,6 +559,23 @@ sub map_options {
     $self->log("options:\n" . dump($options)) if $self->debug;
 
     return $options;
+}
+
+
+sub key_exists {
+    my ($self, $path, $hash) = @_;
+
+    my @bits = split /\./, $path;
+    my $node = $hash;
+
+    return $node
+        if @bits == grep {
+               ref $node eq "HASH"
+            && exists $node->{$_}
+            && ($node = $node->{$_} // {})
+        } @bits;
+
+    return;
 }
 
 
@@ -603,9 +605,11 @@ sub request {
     my ($self, $request) = @_;
 
     my $response;
-    my $err;
+    my $error;
 
-    if ($self->retry_http_codes) {
+    if (   ($self->retry_http_codes and scalar(@{ $self->retry_http_codes }))
+        or ($self->retry_errors and scalar(@{ $self->retry_errors })))
+    {
         my $times = $self->retry_times;
         my $n     = 0;
 
@@ -618,15 +622,18 @@ sub request {
                 if $self->debug;
 
             $response = eval { $self->agent->request($request) };
-            my $err = $@;
-            if ($err) {
-                $response->{error} = $err;
-            }
-            else {
-                $self->log("response code was: " . $response->code)
+            $error = $@;
+
+            # if the user agent died there was a connection issue, definitely retry those
+            unless ($error) {
+                $self->_response($response);
+
+                $self->log("recv payload: " . $response->decoded_content)
                     if $self->debug;
+
                 return $response
-                    unless $response->code ~~ $self->retry_http_codes;
+                    unless $self->needs_retry($response,
+                    $request->header('Accept'));
             }
 
             sleep $self->retry_delay if $times;    # Do not sleep in last time
@@ -634,98 +641,204 @@ sub request {
     }
     else {
         $response = eval { $self->agent->request($request) };
-        $response->{error} = $@ if $@;
+        $error = $@;
+
+        $self->log("recv payload: " . $response->decoded_content)
+            if $response and $self->debug;
     }
 
+    $self->_response($response);
+
+    die $error if $error;
+
     return $response;
+}
+
+
+sub needs_retry {
+    my ($self, $response, $content_type) = @_;
+
+    $self->log("response code was: " . $response->code)
+        if $self->debug;
+
+    return 1 if $response->code ~~ $self->retry_http_codes;
+
+    if (    $self->retry_errors
+        and scalar(@{ $self->retry_errors })
+        and $self->error_keys
+        and scalar(@{ $self->error_keys }))
+    {
+        # we need to decode the response content to be able to find a custom
+        # error field
+        my $content = $self->decode($response->decoded_content,
+            ($response->header('Content-Type') || $content_type));
+
+        my $error = $self->find_error($content);
+
+        return unless $error;
+
+        return 1 if map { $error =~ $_ } @{ $self->retry_errors };
+    }
+
+    return;
+}
+
+
+sub find_error {
+    my ($self, $content) = @_;
+
+    for (@{ $self->error_keys || [] }) {
+        $self->log("checking for error at ($_)") if $self->debug;
+
+        my $node = $self->key_exists($_, $content);
+
+        if ($node) {
+            $self->log("found error: '$node' at ($_)") if $self->debug;
+            return $node;
+        }
+    }
+
+    return;
+}
+
+
+sub format_response {
+    my ($self, $response, $ct, $error) = @_;
+
+    my $answer;
+
+    # collect response headers
+    if ($response) {
+        my $response_headers;
+        $response_headers->{$_} = $response->header($_)
+            foreach ($response->header_field_names);
+
+        unless ($self->_decoded_response) {
+            $self->_decoded_response(
+                eval {
+                    $self->decode($response->decoded_content,
+                        ($response_headers->{'Content-Type'} || $ct));
+                });
+            $error ||= $@;
+        }
+
+        $error ||= $self->find_error($self->_decoded_response);
+
+        $answer = {
+            header  => $response_headers,
+            code    => $response->code,
+            content => $self->_decoded_response,
+            raw     => $response->content,
+        };
+
+        unless ($response->is_success || $response->is_redirect) {
+            $error ||= $response->status_line;
+        }
+    }
+
+    if ($error) {
+        chomp($error);
+        $self->log("ERROR: $error");
+        $answer->{error} = $error;
+    }
+
+    return $answer;
+}
+
+
+sub build_uri {
+    my ($self, $command, $options, $path) = @_;
+
+    my $uri = URI->new($self->base_url);
+    my $p   = $uri->path;
+
+    if ($path) {
+        $p .= '/' . $path;
+
+        # parse all mandatory ID keys from URI path
+        # format: /path/with/some/:id/and/:another_id/fun.js
+        my @mandatory = ($path =~ m/:(\w+)/g);
+
+        # and replace placeholders
+        foreach my $key (@mandatory) {
+            die "required {$key} option missing\n"
+                unless (exists $options->{$key});
+
+            my $encoded_option = uri_escape(delete $options->{$key});
+            $p =~ s/:$key/$encoded_option/gex;
+        }
+    }
+    else {
+        $p .= "/$command";
+    }
+
+    $p .= '.' . $self->extension if ($self->extension);
+    $uri->path($p);
+
+    return $uri;
+}
+
+
+sub build_content_type {
+    my ($self, $command) = @_;
+
+    return {
+        in => $command->{incoming_content_type}
+            || $command->{content_type}
+            || $CONTENT_TYPE{ $self->extension }
+            || $self->incoming_content_type
+            || $self->content_type,
+        out => $command->{outgoing_content_type}
+            || $command->{content_type}
+            || $self->outgoing_content_type
+            || $self->content_type,
+    };
 }
 
 
 sub AUTOLOAD {
     my ($self, %options) = @_;
 
-    my ($command) = $AUTOLOAD =~ /([^:]+)$/;
+    $self->clear_decoded_response;
+    $self->clear_response;
 
-    return { error => "unknown command: $command" }
-        unless (exists $self->commands->{$command});
-
-    my $options = \%options;
-
-    # construct URI path
-    my $uri  = URI->new($self->base_url);
-    my $path = $uri->path;
-
-    # keep for backward compatibility
-    if ($self->commands->{$command}->{require_id}) {
-        return { error => "required {id} attribute missing" }
-            unless (exists $options->{id});
-        my $id = delete $options->{id};
-        $path .= '/' . $self->commands->{$command}->{pre_id_path}
-            if (exists $self->commands->{$command}->{pre_id_path});
-        $path .= '/' . $id;
-        $path .= '/' . $self->commands->{$command}->{post_id_path}
-            if (exists $self->commands->{$command}->{post_id_path});
-    }
-    elsif (exists $self->commands->{$command}->{path}) {
-        $path .= '/' . $self->commands->{$command}->{path};
-
-        # parse all mandatory ID keys from URI path
-        # format: /path/with/some/:id/and/:another_id/fun.js
-        my @mandatory = ($self->commands->{$command}->{path} =~ m/:(\w+)/g);
-
-        # and replace placeholders
-        foreach my $key (@mandatory) {
-            return { error => "required {$key} attribute missing" }
-                unless exists $options->{$key};
-
-            my $encoded_option = uri_escape(delete $options->{$key});
-            $path =~ s/:$key/$encoded_option/gex;
+    # sanity checks
+    die "Attribute (base_url) is required\n" unless $self->base_url;
+    if ($self->auth_type =~ m/^oauth_/) {
+        for (qw(consumer_secret access_token access_secret)) {
+            die "Attribute ($_) is required\n" unless $self->$_;
         }
     }
-    else {
-        $path .= "/$command";
-    }
 
-    $path .= '.' . $self->extension if ($self->extension);
-    $uri->path($path);
+    my ($command) = $AUTOLOAD =~ /([^:]+)$/;
 
-    # configure in/out content types
-    # order of precedence should be:
-    # command based incoming_content_type
-    # command based general content_type
-    # content type based on extension (only for incoming)
-    # global incoming_content_type
-    # global general content_type
-    my $content_type;
-    $content_type->{in} =
-           $self->commands->{$command}->{incoming_content_type}
-        || $self->commands->{$command}->{content_type}
-        || $CONTENT_TYPE{ $self->extension }
-        || $self->incoming_content_type
-        || $self->content_type;
-    $content_type->{out} =
-           $self->commands->{$command}->{outgoing_content_type}
-        || $self->commands->{$command}->{content_type}
-        || $self->outgoing_content_type
-        || $self->content_type;
+    my $ct;
+    my $response = eval {
+        die "unknown command: $command\n"
+            unless (exists $self->commands->{$command});
 
-    # manage options
-    $options = $self->map_options($options, $self->commands->{$command},
-        $content_type->{in})
-        if ((
-                (keys %$options)
-            and ($content_type->{out} =~ m/(xml|json|urlencoded)/))
-        or (exists $self->commands->{$command}->{default_attributes})
-        or (exists $self->commands->{$command}->{mandatory}));
-    return $options if (exists $options->{error});
+        my $options = \%options;
 
-    # do the call
-    my $response =
-        $self->talk($self->commands->{$command}, $uri, $options, $content_type);
+        # construct URI
+        my $uri =
+            $self->build_uri($command, $options,
+            $self->commands->{$command}->{path});
 
-    $self->log("response:\n" . dump($response)) if $self->debug;
+        # select the right content types for encoding/decoding
+        $ct = $self->build_content_type($self->commands->{$command});
 
-    return $response;
+        # manage options
+        $options =
+            $self->map_options($options, $self->commands->{$command}, $ct->{in})
+            if (((keys %$options) and ($ct->{out} =~ m/(xml|json|urlencoded)/))
+            or (exists $self->commands->{$command}->{default_attributes})
+            or (exists $self->commands->{$command}->{mandatory}));
+
+        # do the talking
+        return $self->talk($self->commands->{$command}, $uri, $options, $ct);
+    };
+
+    return $self->format_response($self->_response, $ct->{in}, $@);
 }
 
 
@@ -743,15 +856,19 @@ Web::API - Web::API - A Simple base module to implement almost every RESTful API
 
 =head1 VERSION
 
-version 2.1
+version 2.2
 
 =head1 SYNOPSIS
+
+B<NOTE:> as of version 2.1 C<strict_ssl> is enabled by default for obvious security
+reasons, this may break your current library implementation, sorry.
 
 Implement the RESTful API of your choice in 10 minutes, roughly.
 
     package Net::CloudProvider;
 
-    use Any::Moose;
+    use Mouse;
+    
     with 'Web::API';
 
     our $VERSION = "0.1";
@@ -862,56 +979,68 @@ module you are writing.
 the following keys are valid/possible:
 
     method
-    require_id
     path
-    pre_id_path
-    post_id_path
-    wrapper
-    default_attributes
     mandatory
+    default_attributes
+    headers
     extension
     content_type
     incoming_content_type
     outgoing_content_type
+    wrapper
+    require_id (depricated, use path)
+    pre_id_path (depricated, use path)
+    post_id_path (depriated, use path)
 
-the request path for non require_id commands is being build as:
+the request path for commands is being build as:
 
     $base_url/$path.$extension
 
-accordingly requests with require_id:
+an example for C<path>:
 
-    $base_url/$pre_id_path/$id/$post_id_path.$extension
+    path => 'users/:user_id/labels'
 
-whereas $id can be any arbitrary object like a domain, that the API in question
-does operations on.
+this will add C<user_id> to the list of mandatory keys for this command
+automatically.
 
 =head2 base_url (required)
 
 get/set base URL to API, can include paths
 
-=head2 api_key (required)
+=head2 api_key (required in most cases)
 
-get/set api_key
+get/set API key (also used as basic auth password)
 
 =head2 user (optional)
 
-get/set username/account name
+get/set API username/account name
 
 =head2 api_key_field (optional)
 
-get/set name of the hash key in the POST data structure that has to hold the api_key
+get/set name of the hash key that has to hold the C<api_key>
+e.g. in POST content payloads
 
 =head2 mapping (optional)
 
-supply mapping table, hashref of format { key => value }
-
-default: undef
+supply mapping table, hashref of format { "key" => "value", ... }
 
 =head2 wrapper (optional)
 
+get/set name of the key that is used to wrap all options of a command in.
+unfortunately some APIs increase the depth of a hash by wrapping everything into
+a single key (who knows why...), which means this:
+
+    $wa->command(%options);
+
+turns C<%options> into:
+
+    { wrapper => \%options }
+
+before encoding and sending it off.
+
 =head2 header (optional)
 
-get/set custom headers sent with each request
+get/set custom headers sent with every request
 
 =head2 auth_type
 
@@ -941,9 +1070,11 @@ get/set LWP::UserAgent timeout
 
 =head2 strict_ssl (optional)
 
-enable/disable strict SSL certificate hostname checking
+enable/disable strict SSL certificate hostname checking as a convenience
+alternatively you can supply your own LWP::Useragent compatible agent for
+the C<agent> attribute.
 
-default: false
+default: true
 
 =head2 agent (optional)
 
@@ -952,6 +1083,11 @@ get/set LWP::UserAgent object
 =head2 retry_http_codes (optional)
 
 get/set array of HTTP response codes that trigger a retry of the request
+
+=head2 retry_errors (optional)
+
+define an array reference of regexes that should trigger a retry of the request
+if matched against an error found via one of the C<error_keys>
 
 =head2 retry_times (optional)
 
@@ -967,6 +1103,11 @@ default: 1.0
 
 =head2 content_type (optional)
 
+global content type, which is used for in and out going request/response
+headers and to encode and decode the payload if no other more specific content
+types are set, e.g. C<incoming_content_type>, C<outgoing_content_type> or
+content types set individually per command attribute.
+
 default: 'text/plain'
 
 =head2 incoming_content_type (optional)
@@ -979,9 +1120,15 @@ default: undef
 
 =head2 debug (optional)
 
-default: 0
+enable/disabled debug logging
+
+default: false
 
 =head2 cookies (optional)
+
+this is used to store and retrieve cookies before and after requests were made
+to keep authenticated sessions alive for the time this object exists in memory
+you can add your own cookies to be send with every request.
 
 default: HTTP::Cookies->new
 
@@ -1003,19 +1150,39 @@ default: undef
 
 =head2 encoder (custom options encoding subroutine)
 
-Receives options and content-type as the only 2 arguments
+Receives C<\%options> and C<content-type> as the only 2 arguments and has to
+return a single scalar.
 
 default: undef
 
 =head2 decoder (custom response content decoding subroutine)
 
-Receives content and content-type as the only 2 arguments
+Receives C<content> and C<content-type> as the only 2 scalar arguments and has
+to return a single hash reference.
 
 default: undef
 
 =head2 oauth_post_body (required for all oauth_* auth_types)
 
+enable/disable adding of command options as extra parameters to the OAuth
+request generation and therefor be included in the OAuth signature calculation.
+
 default: true
+
+=head2 error_keys
+
+get/set list of array keys that will be search for in the decoded response data
+structure. the same format as for mandatory keys is supported:
+
+    some.deeply.nested.error.message
+
+will search for an error message at
+
+    $decoded_response->{some}->{deeply}->{nested}->{error}->{messsage}
+
+and if the key exists and its value is defined it will be provided as
+C<$response->{error}> and matched against all regexes from the `retry_errors`
+array ref if provided to trigger a retry on particular errors.
 
 =head1 INTERNAL SUBROUTINES/METHODS
 
@@ -1033,13 +1200,51 @@ generates new OAuth nonce for every request
 
 =head2 map_options
 
+=head2 key_exists
+
 =head2 wrap
 
 =head2 request
 
 retry request with delay if C<retry_http_codes> is set, otherwise just try once.
 
+=head2 needs_retry
+
+returns true if the HTTP code or error found match either C<retry_http_codes>
+or C<retry_errors> respectively.
+returns false otherwise.
+
+if C<retry_errors> are defined it will try to decode the response content and
+store the decoded structure internally so we don't have to decode again at the
+end.
+
+needs the last response object and the 'Accept' content type header from the
+request for decoding.
+
+=head2 find_error
+
+go through C<error_keys> and find a potential error message in the decoded/parsed
+response and return it.
+
+=head2 format_response
+
+=head2 build_uri
+
+=head2 build_content_type
+
+configure in/out content types
+
+order of precedence:
+1. per command C<incoming_content_type> / C<outgoing_content_type>
+2. per command general C<content_type>
+3. content type based on file path extension (only for incoming)
+4. global C<incoming_content_type> / C<outgoing_content_type>
+5. global general C<content_type>
+
 =head2 AUTOLOAD magic
+
+install a method for each new command and call it in an eval {} to catch die()s
+and set an error in a unified way.
 
 =head1 BUGS
 
